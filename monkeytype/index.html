@@ -1,0 +1,350 @@
+<title>Monkey Type Game - Test your typing speed!</title>
+
+<style>
+  :root {
+    color-scheme: light dark;
+
+    --green: #00b755;
+    --yellow: #daaf38;
+    --red: #ca4754;
+
+    --black: #222;
+    --gray: #999;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body {
+      --background-color: var(--black); /* Fondo negro en tema dark */
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    body {
+      --background-color: white; /* Fondo blanco en tema light */
+    }
+  }
+
+  body {
+    font-family: Menlo, monospace;
+    background: var(--background-color);
+    display: grid;
+    place-content: center;
+
+    padding: 32px;
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+
+    padding: 16px;
+
+    gap: 16px;
+
+    max-width: 500px;
+  }
+
+  time {
+    color: var(--yellow);
+  }
+
+  input {
+    z-index: -999;
+
+    position: absolute;
+
+    top: 0;
+    left: 0;
+
+    pointer-events: none;
+
+    opacity: 0;
+  }
+
+  x-word {  
+    /* display: flex;
+    gap: 8px; */
+    border-bottom: 1.5px solid transparent;
+    transition: border-bottom 0.3s;
+
+    &.wrong {
+      border-color: var(--red);
+    }
+  }
+
+  x-letter {
+    color: var(--gray);
+    position: relative;
+
+    &.active::before {
+      content: "|";
+
+      color: var(--yellow);
+
+      position: absolute;
+
+      left: -50%;
+
+      animation: blink 0.5s infinite;
+    }
+
+    &.last::before {
+      left: 50%;
+    }
+
+    &.correct {
+      color: var(--green);
+    }
+
+    &.wrong {
+      color: var(--red);
+    }
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+</style>
+
+<body>
+  <main>
+    <section id="game">
+      <time>30</time>
+      <p></p>
+      <input aria-label="Input" autofocus />
+    </section>
+  </main>
+</body>
+
+<script type="module">
+  import { words as WORDS } from "./words.js";
+
+  const $time = document.querySelector("time");
+  const $text = document.querySelector("p");
+  const $input = document.querySelector("input");
+
+  const INITIAL_TIME = 30;
+
+  let words = [];
+  let time = INITIAL_TIME;
+
+  const start = () => {
+    time = INITIAL_TIME;
+    $time.textContent = time;
+
+    words = WORDS.toSorted(() => 0.5 - Math.random()).slice(0, 32);
+
+    type();
+    setTime();
+    setActive();
+    setEvents();
+  };
+
+  const type = () => {
+    if (words.length === 0) {
+      end();
+      return;
+    }
+
+    $text.innerHTML = words
+      .map((word) => {
+        return `<x-word>
+          ${word
+            .split("")
+            .map((letter) => `<x-letter>${letter}</x-letter>`)
+            .join("")}</x-word>`;
+      })
+      .join("");
+  };
+
+  const setTime = () => {
+    if (time > 0) {
+      $time.textContent = --time;
+      setTimeout(setTime, 1000);
+    } else {
+      end();
+    }
+  };
+
+  const setActive = () => {
+    const $firstWord = $text.querySelector("x-word");
+    $firstWord.classList.add("active");
+
+    const $firstLetter = $firstWord.querySelector("x-letter");
+    $firstLetter.classList.add("active");
+  };
+
+  const setEvents = () => {
+    document.addEventListener("keydown", (event) => {
+      $input.focus();
+    });
+
+    $input.addEventListener("keydown", onKeyDown);
+    $input.addEventListener("keyup", onKeyUp);
+  };
+
+  const onKeyDown = (event) => {
+    const { key } = event;
+    if (key === "Backspace") {
+      onBackspace();
+    }
+
+    if (key === " ") {
+      event.preventDefault();
+      onSpace();
+    }
+  };
+
+  const onSpace = () => {
+    const $currentWord = $text.querySelector("x-word.active");
+    const $currentLetter = $currentWord.querySelector("x-letter.active");
+
+    if ($currentWord.querySelector(":not(.correct)")) {
+      $currentWord.classList.add("wrong");
+    }
+
+    if ($currentWord.nextElementSibling) {
+      $currentLetter.classList.remove("active", "last");
+      $currentWord.classList.remove("active");
+
+      const $nextWord = $currentWord.nextElementSibling;
+      $nextWord.querySelector("x-letter").classList.add("active");
+      $nextWord.classList.add("active");
+    }
+  };
+
+  const onBackspace = () => {
+    const $currentWord = $text.querySelector("x-word.active");
+    const $currentLetter = $currentWord.querySelector("x-letter.active");
+
+    // check if it's the first word and first letter
+    if (
+      !$currentWord.previousElementSibling &&
+      !$currentLetter.previousElementSibling
+    ) {
+      // don't do anything
+      return;
+    }
+    // check if it's the last letter
+    if ($currentLetter.classList.contains("last")) {
+      $currentLetter.classList.remove("last", "correct", "wrong");
+      return;
+    }
+    // check if it's the first letter and not the first word
+    if (
+      !$currentLetter.previousElementSibling &&
+      $currentWord.previousElementSibling
+    ) {
+      if (
+        !$currentWord.previousElementSibling.querySelectorAll(":not(.correct)")
+          .length &&
+        !$text.querySelector("x-word.wrong").length
+      ) {
+        // all the letters in the previous word are correct
+        // return;
+      }
+    }
+
+    $currentLetter.classList.remove("active", "correct", "wrong");
+
+    // check if it's exists a previous letter
+    if ($currentLetter.previousElementSibling) {
+      // remove the wrong and correct classes
+      $currentLetter.previousElementSibling.classList.remove(
+        "wrong",
+        "correct"
+      );
+      // add the active class
+      $currentLetter.previousElementSibling.classList.add("active");
+
+      // check if it's exists a previous word
+    } else if ($currentWord.previousElementSibling) {
+      $currentWord.classList.remove("active");
+
+      $currentWord.previousElementSibling.classList.add("active");
+      $currentWord.previousElementSibling.classList.remove("wrong");
+      $currentWord.previousElementSibling.lastElementChild.classList.add(
+        "active"
+      );
+      $currentWord.previousElementSibling.lastElementChild.classList.remove(
+        "wrong",
+        "correct"
+      );
+    }
+  };
+
+  const onKeyUp = (event) => {
+    const { key } = event;
+
+    if (key === "Backspace") {
+      return;
+    }
+
+    if (key === " ") {
+      return;
+    }
+
+    if (key === "CapsLock") {
+      return;
+    }
+
+    if (key === "Shift") {
+      return;
+    }
+
+    const $currentWord = $text.querySelector("x-word.active");
+    const $currentLetter = $currentWord.querySelector("x-letter.active");
+
+    if ($currentLetter.classList.contains("last")) {
+      return;
+    }
+
+    if ($currentLetter) {
+      if ($currentLetter.textContent.toLowerCase() === key.toLowerCase()) {
+        onCorrect();
+      } else {
+        onWrong();
+      }
+    }
+  };
+
+  const onCorrect = () => {
+    const $currentWord = $text.querySelector("x-word.active");
+    const $currentLetter = $currentWord.querySelector("x-letter.active");
+
+    $currentLetter.classList.remove("active");
+    $currentLetter.classList.add("correct");
+
+    onNext($currentWord, $currentLetter);
+  };
+
+  const onWrong = () => {
+    const $currentWord = $text.querySelector("x-word.active");
+    const $currentLetter = $currentWord.querySelector("x-letter.active");
+
+    $currentLetter.classList.remove("active");
+    $currentLetter.classList.add("wrong");
+
+    onNext($currentWord, $currentLetter);
+  };
+
+  const onNext = ($currentWord, $currentLetter) => {
+    const $nextLetter = $currentLetter.nextElementSibling;
+    if ($nextLetter) {
+      $nextLetter.classList.add("active");
+    } else if ($currentWord.nextElementSibling) {
+      $currentLetter.classList.add("last");
+      $currentLetter.classList.add("active");
+    } else {
+      end();
+    }
+  };
+
+  const end = () => {
+    alert("Game Over");
+  };
+
+  start();
+</script>
