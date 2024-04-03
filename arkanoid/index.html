@@ -1,0 +1,239 @@
+<title>Arkanoid</title>
+
+<style>
+  body {
+    background-color: #111;
+  }
+
+  canvas {
+    border: 4px solid #fff;
+    border-bottom: transparent;
+    background: url("./sprites/background.png") repeat;
+    margin: 0 auto;
+    display: block;
+  }
+</style>
+
+<canvas></canvas>
+
+<img hidden id="sprite" src="./sprites/sprite.png" alt="Sprite Arkanoid" />
+<img
+  hidden
+  id="bricks"
+  src="./sprites/bricks.png"
+  alt="Sprite Bricks Arkanoid"
+/>
+
+<script>
+  // Canvas
+  const canvas = {
+    $element: document.querySelector("canvas"),
+    height: 400,
+    width: 448,
+    get context() {
+      return this.$element.getContext("2d");
+    },
+    clear() {
+      this.context.clearRect(0, 0, this.width, this.height);
+    },
+  };
+
+  // Sprites
+  const sprite = {
+    $element: document.querySelector("#sprite"),
+  };
+  const bricks = {
+    $element: document.querySelector("#bricks"),
+    rows: 6,
+    columns: 13,
+    offset: { x: 16, y: 70 },
+    bricks: [],
+    width: 32,
+    height: 16,
+    get color() {
+      return Math.floor(Math.random() * 8);
+    },
+    createBricks() {
+      for (let c = 0; c < this.columns; c++) {
+        this.bricks[c] = [];
+        for (let r = 0; r < this.rows; r++) {
+          this.bricks[c][r] = {
+            x: c * this.width + this.offset.x,
+            y: r * this.height + this.offset.y,
+            status: true,
+            color: this.color,
+          };
+        }
+      }
+    },
+    drawBricks() {
+      for (let c = 0; c < this.columns; c++) {
+        for (let r = 0; r < this.rows; r++) {
+          if (this.bricks[c][r].status) {
+            const x = this.bricks[c][r].x;
+            const y = this.bricks[c][r].y;
+
+            canvas.context.drawImage(
+              this.$element,
+              this.bricks[c][r].color * 32,
+              0,
+              this.width,
+              this.height,
+              x,
+              y,
+              this.width,
+              this.height
+            );
+          }
+        }
+      }
+    },
+    collisionDetection() {
+      for (let c = 0; c < this.columns; c++) {
+        for (let r = 0; r < this.rows; r++) {
+          const b = this.bricks[c][r];
+
+          if (
+            b.status &&
+            ball.x > b.x &&
+            ball.x < b.x + this.width &&
+            ball.y > b.y &&
+            ball.y < b.y + this.height
+          ) {
+            ball.dy *= -1;
+
+            b.status = false;
+          }
+        }
+      }
+    },
+    draw() {
+      this.drawBricks();
+      this.collisionDetection();
+    },
+  };
+
+  // Ball
+  const ball = {
+    x: canvas.width / 2,
+    y: canvas.height - 30,
+    radius: 4,
+    dx: 2,
+    dy: -2,
+    drawBall() {
+      canvas.context.beginPath();
+      canvas.context.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+      canvas.context.fillStyle = "#fff";
+      canvas.context.fill();
+      canvas.context.closePath();
+    },
+    collisionDetection() {
+      // Collision detection with walls
+      if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
+        this.dx *= -1;
+      }
+
+      // Collision detection with top
+      if (this.y - this.radius < 0) {
+        this.dy *= -1;
+      }
+
+      // Collision detection with paddle
+      if (
+        this.y + this.radius >= paddle.y &&
+        this.x > paddle.x &&
+        this.x < paddle.x + paddle.width
+      ) {
+        this.dy *= -1;
+      }
+
+      // Collision detection with bottom
+      if (this.y + this.radius > canvas.height) {
+        // Game over
+        location.reload();
+      }
+    },
+    draw() {
+      this.drawBall();
+
+      // Move the ball
+      this.x += this.dx;
+      this.y += this.dy;
+
+      // Collision detection
+      this.collisionDetection();
+    },
+  };
+
+  // Paddle
+  const paddle = {
+    height: 10,
+    width: 50,
+    x: canvas.width / 2 - 25,
+    y: canvas.height - 20,
+    dx: 6,
+    drawPaddle() {
+      canvas.context.beginPath();
+      canvas.context.drawImage(
+        sprite.$element,
+        29,
+        174,
+        this.width,
+        this.height,
+        this.x,
+        this.y,
+        this.width,
+        this.height
+      );
+      canvas.context.fill();
+      canvas.context.closePath();
+    },
+    eventListener() {
+      window.addEventListener("keydown", (event) => {
+        switch (event.key) {
+          case "ArrowLeft":
+            if (this.x > 0) {
+              this.x -= this.dx;
+
+              break;
+            }
+
+          case "ArrowRight":
+            if (this.x < canvas.width - this.width) {
+              this.x += this.dx;
+
+              break;
+            }
+        }
+      });
+    },
+    draw() {
+      this.drawPaddle();
+    },
+  };
+
+  // Initial setup
+  canvas.$element.height = canvas.height;
+  canvas.$element.width = canvas.width;
+  paddle.eventListener(); // Event listeners
+  bricks.createBricks(); // Create the bricks
+
+  // Loop
+  function loop() {
+    // Clear the canvas
+    canvas.clear();
+    // Draw the ball
+    ball.draw();
+    // Draw the paddle
+    paddle.draw();
+
+    // Draw the bricks
+    bricks.draw();
+
+    // Request the next frame
+    window.requestAnimationFrame(loop);
+  }
+
+  // Start the game
+  loop();
+</script>
