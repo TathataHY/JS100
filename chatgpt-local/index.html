@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatGPT Local</title>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue",
+          sans-serif;
+        background: #f0f0f0;
+        display: grid;
+        place-content: center;
+        height: 100dvh;
+      }
+
+      main {
+        width: 400px;
+        max-width: 100%;
+        height: 70vh;
+
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 0 10 px rgba(0, 0, 0, 0.1);
+        padding: 8px;
+        margin-bottom: 16px;
+
+        overflow-y: auto;
+        scroll-behavior: smooth;
+      }
+
+      ul {
+        display: flex;
+        flex-direction: column;
+        list-style: none;
+        padding: 0;
+      }
+
+      .message {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        mask-position: 4px 0;
+        padding: 4px 8px;
+
+        .message-username {
+          width: 36px;
+          height: 36px;
+          background: #eee;
+          font-size: 12px;
+          font-weight: 500;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          border-radius: 999999px;
+        }
+
+        .message-text {
+          padding: 4px 8px;
+          border-radius: 4px;
+        }
+
+        &.gpt {
+          align-items: flex-start;
+          span {
+            background: rgb(198, 255, 220);
+          }
+        }
+
+        &.you {
+          align-items: flex-end;
+          span {
+            background: rgb(219, 236, 255);
+          }
+        }
+      }
+
+      form {
+        display: flex;
+        gap: 8px;
+
+        input {
+          flex-grow: 1;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          padding: 8px;
+          flex: 1;
+        }
+
+        button {
+          background: #09f;
+          color: white;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          padding: 8px;
+          cursor: pointer;
+          transition: background 0.3s ease;
+
+          &[disabled] {
+            background: #999;
+            pointer-events: none;
+          }
+
+          &:hover {
+            background: #0af;
+          }
+        }
+      }
+
+      small {
+        font-size: 10px;
+        color: #555;
+        position: fixed;
+        bottom: 10px;
+        left: 0;
+        right: 0;
+        margin: auto;
+        width: 400px;
+      }
+
+      .loading {
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        height: 100%;
+        align-items: center;
+        flex-direction: column;
+        margin-top: 50%;
+
+        i {
+          pointer-events: none;
+          width: 2.5em;
+          height: 2.5em;
+          border: 0.4em solid transparent;
+          border-color: #eee;
+          border-top-color: #3e67ec;
+          border-radius: 50%;
+          animation: loadingspin 1s linear infinite;
+        }
+
+        h4 {
+          color: #444;
+          margin-bottom: 8px;
+        }
+
+        h5 {
+          font-weight: 400;
+          margin: 0;
+          font-size: 10px;
+          opacity: 0.4;
+        }
+      }
+
+      @keyframes loadingspin {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+
+    <script type="module">
+      const $ = (query) => document.querySelector(query);
+
+      const $container = $("main");
+      const $messages = $("ul");
+
+      const $loading = $(".loading");
+
+      const $form = $("form");
+      const $input = $("input");
+      const $button = $("button");
+
+      const $info = $("#info");
+
+      const messageTemplate = $("#message-template").content;
+
+      //#region ChatGPT
+      import { CreateWebWorkerMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+
+      const AI_MODEL = "gemma-2b-it-q4f32_1-MLC";
+
+      const engine = await CreateWebWorkerMLCEngine(
+        new Worker("./service-worker.js", { type: "module" }),
+        AI_MODEL,
+        {
+          initProgressCallback: ({ progress, text }) => {
+            $info.textContent = text;
+            if (progress === 1) {
+              $loading.parentNode.removeChild($loading);
+              $button.removeAttribute("disabled");
+              addMessage(
+                "¡Hola! Soy un ChatGPT que se ejecuta completamente en tu navegador. ¿En qué puedo ayudarte hoy?",
+                true
+              );
+              $input.focus();
+            }
+          },
+        }
+      );
+      //#endregion
+
+      $form.addEventListener("submit", async (event) => {
+        try {
+          event.preventDefault();
+
+          $button.setAttribute("disabled", true);
+          const message = $input.value.trim();
+
+          if (message) {
+            addMessage(message);
+            $input.value = "";
+
+            const chunks = await engine.chat.completions.create({
+              messages: [{ role: "user", content: message }],
+              stream: true,
+            });
+
+            let reply = "";
+
+            const $message = addMessage(reply, true);
+
+            for await (const chunk of chunks) {
+              reply += chunk.choices[0]?.delta.content || "";
+
+              const formattedReply = reply.replace(/\n/g, "<br>");
+
+              $message.innerHTML = formattedReply;
+            }
+          }
+        } finally {
+          scrollToBottom();
+          $button.removeAttribute("disabled");
+        }
+      });
+
+      function addMessage(message, gpt = false) {
+        const messageElement = messageTemplate.cloneNode(true);
+        const $message = messageElement.querySelector(".message-text");
+        messageElement
+          .querySelector(".message")
+          .classList.add(gpt ? "gpt" : "you");
+        messageElement.querySelector(".message-username").textContent = gpt
+          ? "GPT"
+          : "Tú";
+        messageElement.querySelector(".message-text").textContent = message;
+        $messages.appendChild(messageElement);
+
+        scrollToBottom();
+
+        return $message;
+      }
+
+      function scrollToBottom() {
+        $container.scrollTop = $container.scrollHeight;
+      }
+    </script>
+  </head>
+  <body>
+    <main>
+      <ul id="messages">
+        <li class="loading">
+          <i></i>
+          <h4>Cargando...</h4>
+          <h5>Esto puede tardar un poco. Paciencia.</h5>
+        </li>
+        <!-- <li class="message gpt">
+          <span class="message-username">GPT</span>
+          <span class="message-text">Hola, ¿que tal?</span>
+        </li>
+
+        <li class="message you">
+          <span class="message-username">Tú</span>
+          <span class="message-text">Muy bien</span>
+        </li> -->
+      </ul>
+    </main>
+
+    <form>
+      <input placeholder="Escribe tu mensaje aqui" />
+      <button disabled>Enviar</button>
+    </form>
+
+    <small id="info">&nbsp;</small>
+
+    <template id="message-template">
+      <li class="message">
+        <span class="message-username"></span>
+        <span class="message-text"></span>
+      </li>
+    </template>
+  </body>
+</html>
