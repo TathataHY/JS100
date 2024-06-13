@@ -1,4 +1,4 @@
 # arkanoid-game
 Juego mítico y clásico de Arkanoid para controlar con teclado
 
-![Captura de pantalla 2024-03-02 161202](https://github.com/TathataHY/arkanoid-game/assets/86846618/edd099ce-0c61-417b-8d77-04344da7afd1)
+![image](https://github.com/TathataHY/JS100/assets/86846618/42170c45-2905-4b12-b1a8-92ccf5274be0)
